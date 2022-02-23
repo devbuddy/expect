@@ -5,7 +5,7 @@ up:
   - homebrew:
     - golangci/tap/golangci-lint
   - go:
-      version: 1.16.4
+      version: 1.17.7
       modules: true
 
 commands:
