@@ -1,6 +1,7 @@
 package expect
 
 import (
+	"os/exec"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -8,47 +9,55 @@ import (
 
 const DockerImage = "docker-test-image"
 
-func Test_ShellExpect_Bash(t *testing.T) {
-	env := []string{
-		"PS1=##\n",
-		"TESTVAR=foobar",
+func Test_ShellExpect(t *testing.T) {
+	tests := []struct {
+		shell     string
+		shellArgs []string
+		env       []string
+	}{
+		{
+			shell:     "zsh",
+			shellArgs: []string{"--no-globalrcs", "--no-rcs", "--no-zle", "--no-promptcr"},
+			env: []string{
+				"PROMPT=##\n",
+				"TESTVAR=foobar",
+			},
+		},
+		{
+			shell:     "bash",
+			shellArgs: []string{"--noprofile", "--norc"},
+			env: []string{
+				"PS1=##\n",
+				"TESTVAR=foobar",
+			},
+		},
 	}
 
-	ep := NewExpectWithEnv("bash", []string{"--noprofile", "--norc"}, env)
-	err := ep.Start()
-	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.shell, func(t *testing.T) {
+			shellPath, err := exec.LookPath(tt.shell)
+			if err != nil {
+				t.Skipf("shell executable not found for %s (%s)", tt.shell, err)
+			}
 
-	shell := NewShellExpect(ep, "##\n")
+			ep := NewExpectWithEnv(shellPath, tt.shellArgs, tt.env)
+			err = ep.Start()
+			require.NoError(t, err)
 
-	err = shell.Init()
-	require.NoError(t, err)
+			shell := NewShellExpect(ep, "##\n")
 
-	output, err := shell.Run("echo $TESTVAR")
-	require.NoError(t, err)
-	require.Equal(t, []string{"foobar"}, output)
-}
+			t.Run("init", func(t *testing.T) {
+				err = shell.Init()
+				require.NoError(t, err)
+			})
 
-func Test_ShellExpect_Zsh(t *testing.T) {
-	t.SkipNow()
-
-	env := []string{
-		"PROMPT=##\n",
-		"TESTVAR=foobar",
+			t.Run("echo", func(t *testing.T) {
+				output, err := shell.Run("echo $TESTVAR")
+				require.NoError(t, err)
+				require.Equal(t, []string{"foobar"}, output)
+			})
+		})
 	}
-
-	ep := NewExpectWithEnv("zsh", []string{"--no-globalrcs", "--no-rcs", "--no-zle", "--no-promptcr"}, env)
-	err := ep.Start()
-	require.NoError(t, err)
-	ep.Debug = true
-
-	shell := NewShellExpect(ep, "##\n")
-
-	err = shell.Init()
-	require.NoError(t, err)
-
-	output, err := shell.Run("echo $TESTVAR")
-	require.NoError(t, err)
-	require.Equal(t, []string{"foobar"}, output)
 }
 
 func Test_ShellExpect_Docker_Bash(t *testing.T) {
